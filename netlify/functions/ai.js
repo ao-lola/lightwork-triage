@@ -1,4 +1,4 @@
-exports.handler = async function(event) {
+export const handler = async function(event) {
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*"
