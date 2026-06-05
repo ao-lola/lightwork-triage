@@ -9,26 +9,51 @@ exports.handler = async function(event, context) {
     return { statusCode: 200, headers, body: "" };
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  
-  // Debug: tell us exactly what's happening
-  if (!apiKey) {
-    return { 
-      statusCode: 500, 
-      headers, 
-      body: JSON.stringify({ 
-        error: "Key missing",
-        env_keys_present: Object.keys(process.env).filter(k => k.includes("ANTHROPIC")).join(", ") || "none found",
-        all_keys_count: Object.keys(process.env).length
-      }) 
-    };
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
   }
 
-  return { 
-    statusCode: 200, 
-    headers, 
-    body: JSON.stringify({ 
-      content: [{ text: "DEBUG: Key found, length " + apiKey.length }]
-    }) 
-  };
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "ANTHROPIC_API_KEY not set" }) };
+  }
+
+  let body;
+  try {
+    body = JSON.parse(event.body);
+  } catch {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid JSON body" }) };
+  }
+
+  const { prompt } = body;
+  if (!prompt) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "No prompt provided" }) };
+  }
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1500,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { statusCode: response.status, headers, body: JSON.stringify({ error: data.error?.message || "Anthropic API error" }) };
+    }
+
+    return { statusCode: 200, headers, body: JSON.stringify(data) };
+
+  } catch (err) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
+  }
 };
