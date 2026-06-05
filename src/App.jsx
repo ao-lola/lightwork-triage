@@ -299,16 +299,17 @@ INTERNAL CONTEXT: ${form.context || "None provided"}
 
 Return only the JSON object.`;
 
-    try {
+  try {
       const raw = await callAI(prompt);
-      const first = raw.indexOf("{"); const last = raw.lastIndexOf("}");
-      if (first === -1 || last === -1) throw new Error("Could not parse response");
-      const parsed = JSON.parse(raw.slice(first, last + 1));
+      // Strip any markdown fences and find the JSON object
+      const cleaned = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+      const first = cleaned.indexOf("{");
+      const last = cleaned.lastIndexOf("}");
+      if (first === -1 || last === -1) throw new Error("No JSON found in response: " + cleaned.slice(0, 100));
+      const parsed = JSON.parse(cleaned.slice(first, last + 1));
       setResult(parsed);
     } catch (e) {
-      setError("Triage failed: " + e.message + ". Check your API key is set in Netlify environment variables.");
-    } finally {
-      setLoading(false);
+      setError("Triage failed: " + e.message);
     }
   };
 
