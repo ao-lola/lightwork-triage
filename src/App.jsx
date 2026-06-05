@@ -41,29 +41,15 @@ const TEAMS = [
   { id: "leadership",  label: "Leadership",  icon: "⭐", desc: "Exec escalation",          color: "#dc2626", bg: "#fef2f2", border: "#fca5a5" },
 ];
 
-const ANTHROPIC_KEY = "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";
-
 async function callAI(prompt) {
-  if (!ANTHROPIC_KEY) throw new Error("No API key configured. Add VITE_ANTHROPIC_KEY to Netlify environment variables.");
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
+  const r = await fetch("/api/ai", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_KEY,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-calls": "true"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
-      messages: [{ role: "user", content: prompt }]
-    })
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt })
   });
-  if (!r.ok) {
-    const err = await r.json().catch(() => ({}));
-    throw new Error(err.error?.message || "API error " + r.status);
-  }
+  if (!r.ok) throw new Error("HTTP " + r.status);
   const data = await r.json();
+  if (data.error) throw new Error(data.error);
   return data.content?.map(i => i.text || "").join("") || "";
 }
 
