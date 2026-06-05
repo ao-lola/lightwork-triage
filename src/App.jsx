@@ -41,15 +41,29 @@ const TEAMS = [
   { id: "leadership",  label: "Leadership",  icon: "⭐", desc: "Exec escalation",          color: "#dc2626", bg: "#fef2f2", border: "#fca5a5" },
 ];
 
+const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY || "";
+
 async function callAI(prompt) {
-  const r = await fetch("/api/ai", {
+  if (!ANTHROPIC_KEY) throw new Error("No API key configured. Add VITE_ANTHROPIC_KEY to Netlify environment variables.");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt })
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-calls": "true"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1500,
+      messages: [{ role: "user", content: prompt }]
+    })
   });
-  if (!r.ok) throw new Error("HTTP " + r.status);
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({}));
+    throw new Error(err.error?.message || "API error " + r.status);
+  }
   const data = await r.json();
-  if (data.error) throw new Error(data.error);
   return data.content?.map(i => i.text || "").join("") || "";
 }
 
@@ -299,17 +313,16 @@ INTERNAL CONTEXT: ${form.context || "None provided"}
 
 Return only the JSON object.`;
 
-  try {
+    try {
       const raw = await callAI(prompt);
-      // Strip any markdown fences and find the JSON object
-      const cleaned = raw.replace(/```json/g, "").replace(/```/g, "").trim();
-      const first = cleaned.indexOf("{");
-      const last = cleaned.lastIndexOf("}");
-      if (first === -1 || last === -1) throw new Error("No JSON found in response: " + cleaned.slice(0, 100));
-      const parsed = JSON.parse(cleaned.slice(first, last + 1));
+      const first = raw.indexOf("{"); const last = raw.lastIndexOf("}");
+      if (first === -1 || last === -1) throw new Error("Could not parse response");
+      const parsed = JSON.parse(raw.slice(first, last + 1));
       setResult(parsed);
     } catch (e) {
-      setError("Triage failed: " + e.message);
+      setError("Triage failed: " + e.message + ". Check your API key is set in Netlify environment variables.");
+    } finally {
+      setLoading(false);
     }
   };
 
