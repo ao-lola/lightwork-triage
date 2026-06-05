@@ -41,7 +41,7 @@ const TEAMS = [
   { id: "leadership",  label: "Leadership",  icon: "⭐", desc: "Exec escalation",          color: "#dc2626", bg: "#fef2f2", border: "#fca5a5" },
 ];
 
-const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY || "";
+const ANTHROPIC_KEY = "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";
 
 async function callAI(prompt) {
   if (!ANTHROPIC_KEY) throw new Error("No API key configured. Add VITE_ANTHROPIC_KEY to Netlify environment variables.");
