@@ -1,28 +1,59 @@
-export default async (req) => {
+exports.handler = async function(event, context) {
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type"
   };
-  if (req.method === "OPTIONS") return new Response("", { status: 200, headers });
-  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers });
+
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY not configured in Netlify environment variables." }), { status: 500, headers });
+  if (!apiKey) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "ANTHROPIC_API_KEY not set in Netlify environment variables" }) };
+  }
+
   let body;
-  try { body = await req.json(); } catch { return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers }); }
-  const { prompt } = body;
-  if (!prompt) return new Response(JSON.stringify({ error: "No prompt provided" }), { status: 400, headers });
   try {
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
+    body = JSON.parse(event.body);
+  } catch {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid JSON" }) };
+  }
+
+  const { prompt } = body;
+  if (!prompt) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "No prompt provided" }) };
+  }
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1500, messages: [{ role: "user", content: prompt }] })
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1500,
+        messages: [{ role: "user", content: prompt }]
+      })
     });
-    const data = await r.json();
-    if (!r.ok) return new Response(JSON.stringify({ error: data.error?.message || "Anthropic API error" }), { status: r.status, headers });
-    return new Response(JSON.stringify(data), { status: 200, headers });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return { statusCode: response.status, headers, body: JSON.stringify({ error: data.error?.message || "Anthropic API error" }) };
+    }
+
+    return { statusCode: 200, headers, body: JSON.stringify(data) };
+
   } catch (err) {
-    return new Response(JSON.stringify({ error: "Failed to reach Anthropic API: " + err.message }), { status: 500, headers });
+    return { statusCode: 500, headers, body: JSON.stringify({ error: "Failed to reach Anthropic API: " + err.message }) };
   }
 };
-export const config = { path: "/api/ai" };
